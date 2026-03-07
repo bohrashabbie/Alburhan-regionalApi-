@@ -68,3 +68,15 @@ class Project(Base):
     categoryid = Column("categoryid", Integer)
     projectname = Column("projectname", String(400), nullable=False)
     projectdescription = Column("projectdescription", Text)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column("username", String(150), unique=True, nullable=False, index=True)
+    email = Column("email", String(300), unique=True, nullable=False, index=True)
+    password_hash = Column("password_hash", Text, nullable=False)
+    fullname = Column("fullname", String(300))
+    role = Column("role", String(50), default="user")
+    isactive = Column("isactive", Boolean, default=True)

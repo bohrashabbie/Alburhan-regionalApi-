@@ -180,3 +180,36 @@ class ProjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- User ---
+class UserRegister(BaseModel):
+    username: str
+    email: str
+    password: str
+    fullname: Optional[str] = None
+    role: Optional[str] = "user"
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    fullname: Optional[str] = None
+    role: Optional[str] = None
+    isactive: Optional[bool] = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    fullname: Optional[str] = None
+    role: Optional[str] = None
+    isactive: Optional[bool] = None
+
+    class Config:
+        from_attributes = True

@@ -5,6 +5,8 @@ from src.routers import (
     project_category_router,
     project_image_router,
     project_router,
+    auth_router,
+    user_router,
 )
 
 routers = [
@@ -14,4 +16,6 @@ routers = [
     project_category_router.router,
     project_image_router.router,
     project_router.router,
+    auth_router.router,
+    user_router.router,
 ]
