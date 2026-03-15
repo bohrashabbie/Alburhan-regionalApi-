@@ -16,4 +16,5 @@ app.add_middleware(
 for router in routers:
     app.include_router(router, prefix="/api")
 
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+# Serve uploaded media files (e.g. banner images)
+app.mount("/media", StaticFiles(directory="media"), name="media")

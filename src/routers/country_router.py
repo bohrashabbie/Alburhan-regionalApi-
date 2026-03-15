@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File
 from sqlalchemy.orm import Session
+from uuid import uuid4
+import os
 from src.connections.database import get_db
 from src.models.models import Country
 from src.schemas.schemas import CountryCreate, CountryUpdate, CountryResponse
@@ -43,3 +45,38 @@ def delete_country(country_id: int, db: Session = Depends(get_db)):
     if not record:
         return ApiResult(result=None, statusCode=404, success=False, error="Country not found")
     return ApiResult(result=CountryResponse.model_validate(record))
+
+
+MEDIA_ROOT = "media"
+MEDIA_COUNTRIES_DIR = os.path.join(MEDIA_ROOT, "countries", "logos")
+
+
+@router.post("/upload-logo", response_model=ApiResult)
+async def upload_country_logo(file: UploadFile = File(...)):
+    """
+    Upload a country logo image and return a URL path
+    that can be stored in the `logourl` field.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        return ApiResult(
+            result=None,
+            statusCode=400,
+            success=False,
+            error="Only image uploads are allowed.",
+        )
+
+    os.makedirs(MEDIA_COUNTRIES_DIR, exist_ok=True)
+
+    _, ext = os.path.splitext(file.filename or "")
+    if not ext:
+        ext = ".png"
+
+    filename = f"{uuid4().hex}{ext}"
+    file_path = os.path.join(MEDIA_COUNTRIES_DIR, filename)
+
+    contents = await file.read()
+    with open(file_path, "wb") as out_file:
+        out_file.write(contents)
+
+    url_path = f"/media/countries/logos/{filename}"
+    return ApiResult(result={"url": url_path})

@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 # --- Banner ---
@@ -46,7 +46,7 @@ class BannerResponse(BaseModel):
 # --- BranchInfo ---
 class BranchInfoCreate(BaseModel):
     countryid: Optional[int] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     countrycode: Optional[str] = None
     branchname: Optional[str] = None
     branchaddress: Optional[str] = None
@@ -57,7 +57,7 @@ class BranchInfoCreate(BaseModel):
 
 class BranchInfoUpdate(BaseModel):
     countryid: Optional[int] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     countrycode: Optional[str] = None
     branchname: Optional[str] = None
     branchaddress: Optional[str] = None
@@ -69,7 +69,7 @@ class BranchInfoUpdate(BaseModel):
 class BranchInfoResponse(BaseModel):
     id: int
     countryid: Optional[int] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     countrycode: Optional[str] = None
     branchname: Optional[str] = None
     branchaddress: Optional[str] = None
