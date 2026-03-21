@@ -1,14 +1,28 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 
 class BaseRepository:
 
     def __init__(self, model):
         self.model = model
 
-    async def get_all(self, db: AsyncSession):
-        result = await db.execute(select(self.model))
+    async def get_all(self, db: AsyncSession, skip: int = 0, limit: int = None):
+        """Get all records with optional pagination"""
+        query = select(self.model)
+        
+        if skip:
+            query = query.offset(skip)
+        if limit:
+            query = query.limit(limit)
+        
+        result = await db.execute(query)
         return result.scalars().all()
+    
+    async def count(self, db: AsyncSession):
+        """Count total records"""
+        result = await db.execute(select(func.count()).select_from(self.model))
+        return result.scalar()
 
     async def get_by_id(self, db: AsyncSession, record_id: int):
         result = await db.execute(

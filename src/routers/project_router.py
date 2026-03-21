@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.connections.database import get_db
 from src.schemas.schemas import ProjectCreate, ProjectUpdate
 from src.schemas.common import ApiResult
+from src.schemas.pagination import PaginationParams
 from src.utils.cache_decorator import cacheable, invalidate_cache
 from config.settings import CACHE_KEYS
 from src.services import project_service
@@ -13,9 +14,14 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 
 @router.get("/", response_model=ApiResult)
 @cacheable(key=CACHE_KEYS["PROJECTS_ALL"], ttl=60)
-async def get_all_projects(db: AsyncSession = Depends(get_db)):
+async def get_all_projects(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(None, ge=1, description="Page number"),
+    page_size: int = Query(None, ge=1, le=100, description="Items per page")
+):
     logger.info("GET /projects - Fetching all projects")
-    return await project_service.get_all_projects(db)
+    pagination = PaginationParams(page=page, page_size=page_size) if page and page_size else None
+    return await project_service.get_all_projects(db, pagination)
 
 
 @router.get("/{project_id}", response_model=ApiResult)

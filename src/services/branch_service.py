@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.models import BranchInfo
 from src.schemas.schemas import BranchInfoCreate, BranchInfoUpdate, BranchInfoResponse
 from src.schemas.common import ApiResult
+from src.schemas.pagination import PaginationParams, PaginatedResponse
 from src.crud.crud import BaseRepository
 from src.utils.logger import get_logger
 
@@ -9,11 +10,26 @@ logger = get_logger("BRANCH_SERVICE")
 crud = BaseRepository(BranchInfo)
 
 
-async def get_all_branches(db: AsyncSession) -> ApiResult:
+async def get_all_branches(db: AsyncSession, pagination: PaginationParams = None) -> ApiResult:
     try:
-        logger.info("Fetching all branches")
-        records = await crud.get_all(db)
-        return ApiResult(result=[BranchInfoResponse.model_validate(r) for r in records])
+        logger.info(f"Fetching branches (page={pagination.page if pagination else 'all'})")
+        
+        if pagination:
+            # Get paginated results
+            records = await crud.get_all(db, skip=pagination.skip, limit=pagination.limit)
+            total = await crud.count(db)
+            
+            paginated = PaginatedResponse.create(
+                items=[BranchInfoResponse.model_validate(r) for r in records],
+                total=total,
+                page=pagination.page,
+                page_size=pagination.page_size
+            )
+            return ApiResult(result=paginated.model_dump())
+        else:
+            # Get all results (backward compatibility)
+            records = await crud.get_all(db)
+            return ApiResult(result=[BranchInfoResponse.model_validate(r) for r in records])
     except Exception as e:
         logger.error(f"Error fetching all branches: {str(e)}")
         return ApiResult(result=None, statusCode=500, success=False, error=str(e))

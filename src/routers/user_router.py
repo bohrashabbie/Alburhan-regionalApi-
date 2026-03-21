@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.connections.database import get_db
 from src.schemas.schemas import UserUpdate
 from src.schemas.common import ApiResult
+from src.schemas.pagination import PaginationParams
 from src.utils.cache_decorator import cacheable, invalidate_cache
 from config.settings import CACHE_KEYS
 from src.services import user_service
@@ -13,9 +14,14 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/", response_model=ApiResult)
 @cacheable(key=CACHE_KEYS["USERS_ALL"], ttl=60)
-async def get_all_users(db: AsyncSession = Depends(get_db)):
+async def get_all_users(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(None, ge=1, description="Page number"),
+    page_size: int = Query(None, ge=1, le=100, description="Items per page")
+):
     logger.info("GET /users - Fetching all users")
-    return await user_service.get_all_users(db)
+    pagination = PaginationParams(page=page, page_size=page_size) if page and page_size else None
+    return await user_service.get_all_users(db, pagination)
 
 
 @router.get("/{user_id}", response_model=ApiResult)

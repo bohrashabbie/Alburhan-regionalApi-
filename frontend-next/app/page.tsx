@@ -13,25 +13,70 @@ import {
   Link,
   IconButton,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import { Person, Lock, Email, Brightness4, Brightness7 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { useThemeContext } from '../context/ThemeContext';
+import { authService } from './utils/auth';
 
 export default function AuthPage() {
   const router = useRouter();
   const { mode, toggleTheme } = useThemeContext();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    fullname: '',
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    // Simulate auth
-    setTimeout(() => {
+
+    try {
+      if (isLogin) {
+        const result = await authService.login({
+          username: formData.username,
+          password: formData.password,
+        });
+
+        if (!result.success) {
+          setError(result.error || 'Login failed');
+          setLoading(false);
+          return;
+        }
+
+        router.push('/dashboard');
+      } else {
+        const result = await authService.register({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          fullname: formData.fullname,
+          role: 'user',
+        });
+
+        if (!result.success) {
+          setError(result.error || 'Registration failed');
+          setLoading(false);
+          return;
+        }
+
+        setError('');
+        setIsLogin(true);
+        setFormData({ ...formData, password: '' });
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
+      console.error(err);
+    } finally {
       setLoading(false);
-      router.push('/dashboard');
-    }, 1000);
+    }
   };
 
   return (
@@ -113,6 +158,12 @@ export default function AuthPage() {
             </Box>
 
             <Box component="form" onSubmit={handleSubmit} noValidate>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
+
               {/* Common Fields */}
               <TextField
                 fullWidth
@@ -121,6 +172,8 @@ export default function AuthPage() {
                 placeholder={isLogin ? 'Enter your username' : 'Choose a username'}
                 margin="normal"
                 required
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -138,6 +191,8 @@ export default function AuthPage() {
                     label="Full Name"
                     placeholder="Your full name"
                     margin="normal"
+                    value={formData.fullname}
+                    onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -154,6 +209,8 @@ export default function AuthPage() {
                     placeholder="Your email address"
                     margin="normal"
                     required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -173,6 +230,8 @@ export default function AuthPage() {
                 placeholder={isLogin ? 'Enter your password' : 'Create a password'}
                 margin="normal"
                 required
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">

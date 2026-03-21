@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, Query
 from uuid import uuid4
 import os
 from src.connections.database import get_db
 from src.schemas.schemas import BannerCreate, BannerUpdate
 from src.schemas.common import ApiResult
+from src.schemas.pagination import PaginationParams
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.utils.cache_decorator import cacheable, invalidate_cache
 from config.settings import CACHE_KEYS
@@ -16,9 +17,14 @@ router = APIRouter(prefix="/banners", tags=["Banners"])
 
 @router.get("/", response_model=ApiResult)
 @cacheable(key=CACHE_KEYS["BANNERS_ALL"], ttl=60)
-async def get_all_banners(db: AsyncSession = Depends(get_db)):
+async def get_all_banners(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(None, ge=1, description="Page number"),
+    page_size: int = Query(None, ge=1, le=100, description="Items per page")
+):
     logger.info("GET /banners - Fetching all banners")
-    return await banner_service.get_all_banners(db)
+    pagination = PaginationParams(page=page, page_size=page_size) if page and page_size else None
+    return await banner_service.get_all_banners(db, pagination)
 
 @router.get("/{banner_id}", response_model=ApiResult)
 @cacheable(key=CACHE_KEYS["BANNER_BY_ID"], ttl=60)

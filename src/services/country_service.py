@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.models import Country
 from src.schemas.schemas import CountryCreate, CountryUpdate, CountryResponse
 from src.schemas.common import ApiResult
+from src.schemas.pagination import PaginationParams, PaginatedResponse
 from src.crud.crud import BaseRepository
 from src.utils.logger import get_logger
 
@@ -9,11 +10,24 @@ logger = get_logger("COUNTRY_SERVICE")
 crud = BaseRepository(Country)
 
 
-async def get_all_countries(db: AsyncSession) -> ApiResult:
+async def get_all_countries(db: AsyncSession, pagination: PaginationParams = None) -> ApiResult:
     try:
-        logger.info("Fetching all countries")
-        records = await crud.get_all(db)
-        return ApiResult(result=[CountryResponse.model_validate(r) for r in records])
+        logger.info(f"Fetching countries (page={pagination.page if pagination else 'all'})")
+        
+        if pagination:
+            records = await crud.get_all(db, skip=pagination.skip, limit=pagination.limit)
+            total = await crud.count(db)
+            
+            paginated = PaginatedResponse.create(
+                items=[CountryResponse.model_validate(r) for r in records],
+                total=total,
+                page=pagination.page,
+                page_size=pagination.page_size
+            )
+            return ApiResult(result=paginated.model_dump())
+        else:
+            records = await crud.get_all(db)
+            return ApiResult(result=[CountryResponse.model_validate(r) for r in records])
     except Exception as e:
         logger.error(f"Error fetching all countries: {str(e)}")
         return ApiResult(result=None, statusCode=500, success=False, error=str(e))
