@@ -1,45 +1,46 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.connections.database import get_db
-from src.models.models import BranchInfo
-from src.schemas.schemas import BranchInfoCreate, BranchInfoUpdate, BranchInfoResponse
+from src.schemas.schemas import BranchInfoCreate, BranchInfoUpdate
 from src.schemas.common import ApiResult
-from src.crud import crud
+from src.utils.cache_decorator import cacheable, invalidate_cache
+from config.settings import CACHE_KEYS
+from src.services import branch_service
+from src.utils.logger import get_logger
 
+logger = get_logger("BRANCH_ROUTER")
 router = APIRouter(prefix="/branches", tags=["Branches"])
 
-
 @router.get("/", response_model=ApiResult)
-def get_all_branches(db: Session = Depends(get_db)):
-    records = crud.get_all(db, BranchInfo)
-    return ApiResult(result=[BranchInfoResponse.model_validate(r) for r in records])
+@cacheable(key=CACHE_KEYS["BRANCHES_ALL"], ttl=60)
+async def get_all_branches(db: AsyncSession = Depends(get_db)):
+    logger.info("GET /branches - Fetching all branches")
+    return await branch_service.get_all_branches(db)
 
 
 @router.get("/{branch_id}", response_model=ApiResult)
-def get_branch(branch_id: int, db: Session = Depends(get_db)):
-    record = crud.get_by_id(db, BranchInfo, branch_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Branch not found")
-    return ApiResult(result=BranchInfoResponse.model_validate(record))
+@cacheable(key=CACHE_KEYS["BRANCH_BY_ID"], ttl=60)
+async def get_branch(branch_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"GET /branches/{branch_id}")
+    return await branch_service.get_branch_by_id(db, branch_id)
 
 
 @router.post("/", response_model=ApiResult)
-def create_branch(data: BranchInfoCreate, db: Session = Depends(get_db)):
-    record = crud.create(db, BranchInfo, data.model_dump())
-    return ApiResult(result=BranchInfoResponse.model_validate(record), statusCode=201)
+@invalidate_cache(CACHE_KEYS["BRANCHES_ALL"])
+async def create_branch(data: BranchInfoCreate, db: AsyncSession = Depends(get_db)):
+    logger.info("POST /branches - Creating new branch")
+    return await branch_service.create_branch(db, data)
 
 
 @router.put("/{branch_id}", response_model=ApiResult)
-def update_branch(branch_id: int, data: BranchInfoUpdate, db: Session = Depends(get_db)):
-    record = crud.update(db, BranchInfo, branch_id, data.model_dump(exclude_unset=True))
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Branch not found")
-    return ApiResult(result=BranchInfoResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["BRANCHES_ALL"], CACHE_KEYS["BRANCH_BY_ID"])
+async def update_branch(branch_id: int, data: BranchInfoUpdate, db: AsyncSession = Depends(get_db)):
+    logger.info(f"PUT /branches/{branch_id}")
+    return await branch_service.update_branch(db, branch_id, data)
 
 
 @router.delete("/{branch_id}", response_model=ApiResult)
-def delete_branch(branch_id: int, db: Session = Depends(get_db)):
-    record = crud.delete(db, BranchInfo, branch_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Branch not found")
-    return ApiResult(result=BranchInfoResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["BRANCHES_ALL"], CACHE_KEYS["BRANCH_BY_ID"])
+async def delete_branch(branch_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DELETE /branches/{branch_id}")
+    return await branch_service.delete_branch(db, branch_id)

@@ -1,45 +1,46 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.connections.database import get_db
-from src.models.models import Project
-from src.schemas.schemas import ProjectCreate, ProjectUpdate, ProjectResponse
+from src.schemas.schemas import ProjectCreate, ProjectUpdate
 from src.schemas.common import ApiResult
-from src.crud import crud
+from src.utils.cache_decorator import cacheable, invalidate_cache
+from config.settings import CACHE_KEYS
+from src.services import project_service
+from src.utils.logger import get_logger
 
+logger = get_logger("PROJECT_ROUTER")
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
-
 @router.get("/", response_model=ApiResult)
-def get_all_projects(db: Session = Depends(get_db)):
-    records = crud.get_all(db, Project)
-    return ApiResult(result=[ProjectResponse.model_validate(r) for r in records])
+@cacheable(key=CACHE_KEYS["PROJECTS_ALL"], ttl=60)
+async def get_all_projects(db: AsyncSession = Depends(get_db)):
+    logger.info("GET /projects - Fetching all projects")
+    return await project_service.get_all_projects(db)
 
 
 @router.get("/{project_id}", response_model=ApiResult)
-def get_project(project_id: int, db: Session = Depends(get_db)):
-    record = crud.get_by_id(db, Project, project_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project not found")
-    return ApiResult(result=ProjectResponse.model_validate(record))
+@cacheable(key=CACHE_KEYS["PROJECT_BY_ID"], ttl=60)
+async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"GET /projects/{project_id}")
+    return await project_service.get_project_by_id(db, project_id)
 
 
 @router.post("/", response_model=ApiResult)
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    record = crud.create(db, Project, data.model_dump())
-    return ApiResult(result=ProjectResponse.model_validate(record), statusCode=201)
+@invalidate_cache(CACHE_KEYS["PROJECTS_ALL"])
+async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)):
+    logger.info("POST /projects - Creating new project")
+    return await project_service.create_project(db, data)
 
 
 @router.put("/{project_id}", response_model=ApiResult)
-def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
-    record = crud.update(db, Project, project_id, data.model_dump(exclude_unset=True))
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project not found")
-    return ApiResult(result=ProjectResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["PROJECTS_ALL"], CACHE_KEYS["PROJECT_BY_ID"])
+async def update_project(project_id: int, data: ProjectUpdate, db: AsyncSession = Depends(get_db)):
+    logger.info(f"PUT /projects/{project_id}")
+    return await project_service.update_project(db, project_id, data)
 
 
 @router.delete("/{project_id}", response_model=ApiResult)
-def delete_project(project_id: int, db: Session = Depends(get_db)):
-    record = crud.delete(db, Project, project_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project not found")
-    return ApiResult(result=ProjectResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["PROJECTS_ALL"], CACHE_KEYS["PROJECT_BY_ID"])
+async def delete_project(project_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DELETE /projects/{project_id}")
+    return await project_service.delete_project(db, project_id)

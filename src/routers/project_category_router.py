@@ -1,45 +1,46 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.connections.database import get_db
-from src.models.models import ProjectCategory
-from src.schemas.schemas import ProjectCategoryCreate, ProjectCategoryUpdate, ProjectCategoryResponse
+from src.schemas.schemas import ProjectCategoryCreate, ProjectCategoryUpdate
 from src.schemas.common import ApiResult
-from src.crud import crud
+from src.utils.cache_decorator import cacheable, invalidate_cache
+from config.settings import CACHE_KEYS
+from src.services import project_category_service
+from src.utils.logger import get_logger
 
+logger = get_logger("PROJECT_CATEGORY_ROUTER")
 router = APIRouter(prefix="/project-categories", tags=["Project Categories"])
 
-
 @router.get("/", response_model=ApiResult)
-def get_all_categories(db: Session = Depends(get_db)):
-    records = crud.get_all(db, ProjectCategory)
-    return ApiResult(result=[ProjectCategoryResponse.model_validate(r) for r in records])
+@cacheable(key=CACHE_KEYS["PROJECT_CATEGORIES_ALL"], ttl=60)
+async def get_all_categories(db: AsyncSession = Depends(get_db)):
+    logger.info("GET /project-categories - Fetching all categories")
+    return await project_category_service.get_all_categories(db)
 
 
 @router.get("/{category_id}", response_model=ApiResult)
-def get_category(category_id: int, db: Session = Depends(get_db)):
-    record = crud.get_by_id(db, ProjectCategory, category_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project category not found")
-    return ApiResult(result=ProjectCategoryResponse.model_validate(record))
+@cacheable(key=CACHE_KEYS["PROJECT_CATEGORY_BY_ID"], ttl=60)
+async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"GET /project-categories/{category_id}")
+    return await project_category_service.get_category_by_id(db, category_id)
 
 
 @router.post("/", response_model=ApiResult)
-def create_category(data: ProjectCategoryCreate, db: Session = Depends(get_db)):
-    record = crud.create(db, ProjectCategory, data.model_dump())
-    return ApiResult(result=ProjectCategoryResponse.model_validate(record), statusCode=201)
+@invalidate_cache(CACHE_KEYS["PROJECT_CATEGORIES_ALL"])
+async def create_category(data: ProjectCategoryCreate, db: AsyncSession = Depends(get_db)):
+    logger.info("POST /project-categories - Creating new category")
+    return await project_category_service.create_category(db, data)
 
 
 @router.put("/{category_id}", response_model=ApiResult)
-def update_category(category_id: int, data: ProjectCategoryUpdate, db: Session = Depends(get_db)):
-    record = crud.update(db, ProjectCategory, category_id, data.model_dump(exclude_unset=True))
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project category not found")
-    return ApiResult(result=ProjectCategoryResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["PROJECT_CATEGORIES_ALL"], CACHE_KEYS["PROJECT_CATEGORY_BY_ID"])
+async def update_category(category_id: int, data: ProjectCategoryUpdate, db: AsyncSession = Depends(get_db)):
+    logger.info(f"PUT /project-categories/{category_id}")
+    return await project_category_service.update_category(db, category_id, data)
 
 
 @router.delete("/{category_id}", response_model=ApiResult)
-def delete_category(category_id: int, db: Session = Depends(get_db)):
-    record = crud.delete(db, ProjectCategory, category_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Project category not found")
-    return ApiResult(result=ProjectCategoryResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["PROJECT_CATEGORIES_ALL"], CACHE_KEYS["PROJECT_CATEGORY_BY_ID"])
+async def delete_category(category_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DELETE /project-categories/{category_id}")
+    return await project_category_service.delete_category(db, category_id)

@@ -1,50 +1,51 @@
 from fastapi import APIRouter, Depends, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 import os
 from src.connections.database import get_db
-from src.models.models import Country
-from src.schemas.schemas import CountryCreate, CountryUpdate, CountryResponse
+from src.schemas.schemas import CountryCreate, CountryUpdate
 from src.schemas.common import ApiResult
-from src.crud import crud
+from src.utils.cache_decorator import cacheable, invalidate_cache
+from config.settings import CACHE_KEYS
+from src.services import country_service
+from src.utils.logger import get_logger
 
+logger = get_logger("COUNTRY_ROUTER")
 router = APIRouter(prefix="/countries", tags=["Countries"])
 
-
 @router.get("/", response_model=ApiResult)
-def get_all_countries(db: Session = Depends(get_db)):
-    records = crud.get_all(db, Country)
-    return ApiResult(result=[CountryResponse.model_validate(r) for r in records])
+@cacheable(key=CACHE_KEYS["COUNTRIES_ALL"], ttl=60)
+async def get_all_countries(db: AsyncSession = Depends(get_db)):
+    logger.info("GET /countries - Fetching all countries")
+    return await country_service.get_all_countries(db)
 
 
 @router.get("/{country_id}", response_model=ApiResult)
-def get_country(country_id: int, db: Session = Depends(get_db)):
-    record = crud.get_by_id(db, Country, country_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Country not found")
-    return ApiResult(result=CountryResponse.model_validate(record))
+@cacheable(key=CACHE_KEYS["COUNTRY_BY_ID"], ttl=60)
+async def get_country(country_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"GET /countries/{country_id}")
+    return await country_service.get_country_by_id(db, country_id)
 
 
 @router.post("/", response_model=ApiResult)
-def create_country(data: CountryCreate, db: Session = Depends(get_db)):
-    record = crud.create(db, Country, data.model_dump())
-    return ApiResult(result=CountryResponse.model_validate(record), statusCode=201)
+@invalidate_cache(CACHE_KEYS["COUNTRIES_ALL"])
+async def create_country(data: CountryCreate, db: AsyncSession = Depends(get_db)):
+    logger.info("POST /countries - Creating new country")
+    return await country_service.create_country(db, data)
 
 
 @router.put("/{country_id}", response_model=ApiResult)
-def update_country(country_id: int, data: CountryUpdate, db: Session = Depends(get_db)):
-    record = crud.update(db, Country, country_id, data.model_dump(exclude_unset=True))
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Country not found")
-    return ApiResult(result=CountryResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["COUNTRIES_ALL"], CACHE_KEYS["COUNTRY_BY_ID"])
+async def update_country(country_id: int, data: CountryUpdate, db: AsyncSession = Depends(get_db)):
+    logger.info(f"PUT /countries/{country_id}")
+    return await country_service.update_country(db, country_id, data)
 
 
 @router.delete("/{country_id}", response_model=ApiResult)
-def delete_country(country_id: int, db: Session = Depends(get_db)):
-    record = crud.delete(db, Country, country_id)
-    if not record:
-        return ApiResult(result=None, statusCode=404, success=False, error="Country not found")
-    return ApiResult(result=CountryResponse.model_validate(record))
+@invalidate_cache(CACHE_KEYS["COUNTRIES_ALL"], CACHE_KEYS["COUNTRY_BY_ID"])
+async def delete_country(country_id: int, db: AsyncSession = Depends(get_db)):
+    logger.info(f"DELETE /countries/{country_id}")
+    return await country_service.delete_country(db, country_id)
 
 
 MEDIA_ROOT = "media"

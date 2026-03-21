@@ -18,3 +18,13 @@ for router in routers:
 
 # Serve uploaded media files (e.g. banner images)
 app.mount("/media", StaticFiles(directory="media"), name="media")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",  # change to "src.main:app" if needed
+        host="127.0.0.1",
+        port=8000,
+        reload=True
+    )

@@ -1,38 +1,46 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
+class BaseRepository:
 
-def get_all(db: Session, model):
-    return db.query(model).all()
+    def __init__(self, model):
+        self.model = model
 
+    async def get_all(self, db: AsyncSession):
+        result = await db.execute(select(self.model))
+        return result.scalars().all()
 
-def get_by_id(db: Session, model, record_id: int):
-    return db.query(model).filter(model.id == record_id).first()
+    async def get_by_id(self, db: AsyncSession, record_id: int):
+        result = await db.execute(
+            select(self.model).where(self.model.id == record_id)
+        )
+        return result.scalar_one_or_none()
 
+    async def create(self, db: AsyncSession, data: dict):
+        record = self.model(**data)
+        db.add(record)
+        await db.commit()
+        await db.refresh(record)
+        return record
 
-def create(db: Session, model, data: dict):
-    record = model(**data)
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    return record
+    async def update(self, db: AsyncSession, record_id: int, data: dict):
+        record = await self.get_by_id(db, record_id)
+        if not record:
+            return None
 
+        for key, value in data.items():
+            if value is not None:
+                setattr(record, key, value)
 
-def update(db: Session, model, record_id: int, data: dict):
-    record = db.query(model).filter(model.id == record_id).first()
-    if not record:
-        return None 
-    for key, value in data.items():
-        if value is not None:
-            setattr(record, key, value)
-    db.commit()
-    db.refresh(record)
-    return record
+        await db.commit()
+        await db.refresh(record)
+        return record
 
+    async def delete(self, db: AsyncSession, record_id: int):
+        record = await self.get_by_id(db, record_id)
+        if not record:
+            return None
 
-def delete(db: Session, model, record_id: int):
-    record = db.query(model).filter(model.id == record_id).first()
-    if not record:
-        return None
-    db.delete(record)
-    db.commit()
-    return record
+        await db.delete(record)
+        await db.commit()
+        return record

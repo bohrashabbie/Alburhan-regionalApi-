@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 # --- Banner ---
@@ -77,6 +77,11 @@ class BranchInfoResponse(BaseModel):
     contact2: Optional[str] = None
     isactive: Optional[bool] = None
 
+    @field_validator("email", mode="before")
+    def empty_email_to_none(cls, v):
+        if v == "":
+            return None
+        return v
     class Config:
         from_attributes = True
 

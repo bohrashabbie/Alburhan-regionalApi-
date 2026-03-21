@@ -22,7 +22,7 @@ class BranchInfo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     countryid = Column("countryid", Integer)
-    email = Column(String(300))
+    email = Column(String(300), nullable=True)
     countrycode = Column("countrycode", String(20))
     branchname = Column("branchname", String(300))
     branchaddress = Column("branchaddress", Text)
